@@ -36,6 +36,9 @@
         </do_all>
         <append_to_list name="$OwnerGoal.$KCS_LossTimes" exact="player.age"/>
         <debug_text text="'[Careful Supply] ' + $Faction.id + ' lost supply ship ' + @event.object.knownname + ' building ' + @$Station.knownname + ' in ' + @$Station.sector.knownname + ': ' + $OwnerGoal.$KCS_LossTimes.count + ' recently, ' + $OwnerGoal.$KCS_TotalLosses + ' this invasion'"/>
+        <set_value name="$KCS_Seen" exact="@$KCS_LastSeen.{event.object}"/>
+        <debug_text text="'[Careful Supply]   where: ' + (if $KCS_Seen then 'last seen in ' + @$KCS_Seen.{1}.knownname + ' ' + (player.age - $KCS_Seen.{4}) + 's ago, order ' + $KCS_Seen.{2} + (if $KCS_Seen.{3} then ', inside target sector' else ', outside target sector') else 'not seen yet') + '; sector now ' + @event.object.sector.knownname + '; killed by ' + @event.param.knownname + ' (' + @event.param.owner.id + ') in ' + @event.param.sector.knownname + '; on hold: ' + (if @$OwnerGoal.$KCS_PausedSince then 'yes' else 'no')"/>
+        <remove_value name="$KCS_Seen"/>
 
         <do_if value="not @$OwnerGoal.$KCS_PausedSince and $OwnerGoal.$KCS_LossTimes.count ge $KCS_PauseAfterLosses">
           <set_value name="$OwnerGoal.$KCS_PausedSince" exact="player.age"/>
@@ -49,6 +52,15 @@
     <cue name="KCS_Watch">
       <delay exact="30s"/>
       <actions>
+        <!-- remember where each supply ship was, for the loss log -->
+        <do_if value="not $KCS_LastSeen?">
+          <set_value name="$KCS_LastSeen" exact="table[]"/>
+        </do_if>
+        <do_all exact="$Ships.count" counter="$KCS_i">
+          <do_if value="$Ships.{$KCS_i}.isoperational">
+            <set_value name="$KCS_LastSeen.{$Ships.{$KCS_i}}" exact="[$Ships.{$KCS_i}.sector, @$Ships.{$KCS_i}.order.id, $Ships.{$KCS_i}.sector == @$Station.sector, player.age]"/>
+          </do_if>
+        </do_all>
         <do_if value="@$OwnerGoal.$KCS_PausedSince and $Station.exists and not $Station.iswreck and not $Station.isoperational">
           <include_actions ref="KCS_Settings"/>
           <include_actions ref="KCS_Hold_Ships"/>
