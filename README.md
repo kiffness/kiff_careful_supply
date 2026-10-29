@@ -35,10 +35,13 @@ It can be added to or removed from an existing save at any time.
 
 ## Compatibility
 
-It doesn't replace any files. It patches two War Module scripts in place:
+It doesn't replace any files. It patches two scripts in place:
 
-- `md/FactionSubgoal_SupplyFreighters.xml`: counting losses, holding and releasing the freighters
-- `md/FactionGoal_Invade_Space.xml`: giving up the invasion
+- `extensions/faction_fix_pack/md/factionsubgoal_supplyfreighters.xml`: the War Module's supply script (counting
+  losses, holding and releasing the freighters). Patches to another extension's files go under
+  `extensions/<its folder>/`, so this expects the War Module in a folder called `faction_fix_pack`, which is
+  where X4 installs it from the Workshop.
+- `md/factiongoal_invade_space.xml`: the invasion script, as patched by the War Module (giving up the invasion)
 
 Other mods that patch the same parts should still work. Mods that replace those files completely won't work with it.
 
@@ -50,8 +53,8 @@ game loads, and one for each supply ship lost, each hold, each resume and each i
 
 ## Tuning
 
-The numbers are near the top of `md/FactionSubgoal_SupplyFreighters.xml` (`KCS_Settings`). The give-up
-limits (6 ships, 45 minutes) are in `md/FactionGoal_Invade_Space.xml`.
+The numbers are near the top of `extensions/faction_fix_pack/md/factionsubgoal_supplyfreighters.xml`
+(`KCS_Settings`). The give-up limits (6 ships, 45 minutes) are in `md/factiongoal_invade_space.xml`.
 
 ## Credits
 
