@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<content id="kiff_careful_supply" name="Careful Supply Runs (War Module add-on)" description="Add on for Mysterial's Faction Enhancer - War Module. Factions stop feeding freighters one by one into a contested build site: after losses they hold their supply ships at the gate until the area is safe, and give up the invasion if the losses keep coming." author="Kiffness" version="100" date="2026-10-29" save="false" enabled="true">
+  <!-- Optional so this loads after the War Module whichever way it was installed; the diffs only apply when it is there. -->
+  <dependency id="ws_1668457361" optional="true" name="Faction Enhancer - War Module"/>
+  <dependency id="faction_fix_pack" optional="true" name="Faction Enhancer - War Module"/>
+  <dependency version="800"/>
+</content>
