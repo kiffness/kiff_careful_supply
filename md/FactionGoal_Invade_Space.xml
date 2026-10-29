@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<diff>
+  <add sel="//do_elseif[@value='player.age ge $PhaseMinEndTime']/do_elseif[contains(@value, 'beachhead')]/do_if[@value='$ClaimingStation']" pos="before">
+    <do_if value="not $ClaimingStation and player.age le $PhaseMaxEndTime and (@$KCS_TotalLosses ge 6 or (@$KCS_PausedSince and player.age - $KCS_PausedSince gt 45min))">
+      <debug_text text="'[Careful Supply] ' + $Faction.id + ' giving up on ' + $Target.knownname + ' after losing ' + @$KCS_TotalLosses + ' supply ships' + (if @$KCS_PausedSince then ', supplies on hold since ' + $KCS_PausedSince else '')"/>
+      <set_value name="$PhaseMaxEndTime" exact="player.age - 1s"/>
+    </do_if>
+  </add>
+</diff>

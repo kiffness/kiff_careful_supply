@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<diff>
+  <!-- don't leave held ships parked forever when the subgoal ends: drop the hold before they're released -->
+  <add sel="/mdscript/cues/cue[@name='Start']/cues/cue[@name='Cleanup']/actions" pos="prepend">
+    <include_actions ref="KCS_Release_Hold"/>
+  </add>
+
+  <add sel="/mdscript/cues/cue[@name='Start']/cues">
+    <library name="KCS_Settings">
+      <actions>
+        <set_value name="$KCS_PauseAfterLosses" exact="2"/>
+        <set_value name="$KCS_LossWindow" exact="20min"/>
+        <set_value name="$KCS_MinPause" exact="5min"/>
+        <set_value name="$KCS_SafeRange" exact="25km"/>
+        <set_value name="$KCS_StationRange" exact="20km"/>
+        <set_value name="$KCS_HoldDistance" exact="8km"/>
+      </actions>
+    </library>
+
+    <cue name="KCS_Supply_Ship_Lost" instantiate="true">
+      <conditions>
+        <event_object_destroyed group="$Ships"/>
+        <check_value value="$OwnerGoal.exists and $Station.exists and not $Station.iswreck and not $Station.isoperational"/>
+        <check_value value="event.param2 != killmethod.removed and event.param2 != killmethod.collected"/>
+      </conditions>
+      <actions>
+        <include_actions ref="KCS_Settings"/>
+        <set_value name="$OwnerGoal.$KCS_TotalLosses" exact="@$OwnerGoal.$KCS_TotalLosses + 1"/>
+        <do_if value="not $OwnerGoal.$KCS_LossTimes?">
+          <set_value name="$OwnerGoal.$KCS_LossTimes" exact="[]"/>
+        </do_if>
+        <do_all exact="$OwnerGoal.$KCS_LossTimes.count" counter="$KCS_i" reverse="true">
+          <do_if value="player.age - $OwnerGoal.$KCS_LossTimes.{$KCS_i} gt $KCS_LossWindow">
+            <remove_value name="$OwnerGoal.$KCS_LossTimes.{$KCS_i}"/>
+          </do_if>
+        </do_all>
+        <append_to_list name="$OwnerGoal.$KCS_LossTimes" exact="player.age"/>
+        <debug_text text="'[Careful Supply] ' + $Faction.id + ' lost supply ship ' + @event.object.knownname + ' building ' + @$Station.knownname + ' in ' + @$Station.sector.knownname + ': ' + $OwnerGoal.$KCS_LossTimes.count + ' recently, ' + $OwnerGoal.$KCS_TotalLosses + ' this invasion'"/>
+
+        <do_if value="not @$OwnerGoal.$KCS_PausedSince and $OwnerGoal.$KCS_LossTimes.count ge $KCS_PauseAfterLosses">
+          <set_value name="$OwnerGoal.$KCS_PausedSince" exact="player.age"/>
+          <debug_text text="'[Careful Supply] ' + $Faction.id + ' holding supply runs to ' + @$Station.sector.knownname + ' at ' + @$EntryPoint.sector.knownname + ' until it is safe'"/>
+          <include_actions ref="KCS_Hold_Ships"/>
+        </do_if>
+      </actions>
+    </cue>
+
+    <!-- hold then send when safe -->
+    <cue name="KCS_Watch">
+      <delay exact="30s"/>
+      <actions>
+        <do_if value="@$OwnerGoal.$KCS_PausedSince and $Station.exists and not $Station.iswreck and not $Station.isoperational">
+          <include_actions ref="KCS_Settings"/>
+          <include_actions ref="KCS_Hold_Ships"/>
+          <do_if value="player.age - $OwnerGoal.$KCS_PausedSince ge $KCS_MinPause">
+            <include_actions ref="KCS_Check_Site_Safe"/>
+            <do_if value="$KCS_Safe">
+              <debug_text text="'[Careful Supply] ' + $Faction.id + ' resuming supply runs to ' + @$Station.sector.knownname + ' (enemy strength ' + $KCS_EnemyStrength + ', own ' + $KCS_OwnStrength + ')'"/>
+              <remove_value name="$OwnerGoal.$KCS_PausedSince"/>
+              <set_value name="$OwnerGoal.$KCS_LossTimes" exact="[]"/>
+              <include_actions ref="KCS_Release_Hold"/>
+            </do_if>
+          </do_if>
+        </do_if>
+        <reset_cue cue="KCS_Watch"/>
+      </actions>
+    </cue>
+
+    <!-- send the ships to wait  -->
+    <library name="KCS_Hold_Ships">
+      <actions>
+        <include_actions ref="KCS_Settings"/>
+        <do_if value="@$EntryPoint.exists">
+          <create_position name="$KCS_GatePos" space="$EntryPoint.sector" object="$EntryPoint"/>
+          <do_all exact="$Ships.count" counter="$KCS_i">
+            <set_value name="$KCS_Ship" exact="$Ships.{$KCS_i}"/>
+            <do_if value="$KCS_Ship.isoperational and @$KCS_Ship.order.id != 'MoveWait'">
+              <set_value name="$KCS_Yaw" min="0deg" max="360deg"/>
+              <get_safe_pos result="$KCS_HoldPos" sector="$EntryPoint.sector" radius="2km" x="$KCS_GatePos.x + sin($KCS_Yaw) * $KCS_HoldDistance" y="$KCS_GatePos.y" z="$KCS_GatePos.z + cos($KCS_Yaw) * $KCS_HoldDistance" allowyaxis="false"/>
+              <cancel_all_orders object="$KCS_Ship"/>
+              <create_order id="'MoveWait'" object="$KCS_Ship" immediate="true">
+                <param name="destination" value="[$EntryPoint.sector, $KCS_HoldPos]"/>
+                <param name="timeout" value="0s"/>
+              </create_order>
+            </do_if>
+          </do_all>
+          <remove_value name="$KCS_Ship"/>
+          <remove_value name="$KCS_Yaw"/>
+          <remove_value name="$KCS_HoldPos"/>
+          <remove_value name="$KCS_GatePos"/>
+        </do_if>
+      </actions>
+    </library>
+
+    <library name="KCS_Release_Hold">
+      <actions>
+        <do_all exact="$Ships.count" counter="$KCS_i">
+          <do_if value="$Ships.{$KCS_i}.isoperational and @$Ships.{$KCS_i}.order.id == 'MoveWait'">
+            <cancel_all_orders object="$Ships.{$KCS_i}"/>
+            <signal_cue_instantly cue="Set_Ship_Order" param="$Ships.{$KCS_i}"/>
+          </do_if>
+        </do_all>
+      </actions>
+    </library>
+
+    <!-- safe = no enemy station near the build site or the gate we enter by, and either no armed enemy ships there or twice their strength of our own -->
+    <library name="KCS_Check_Site_Safe">
+      <actions>
+        <set_value name="$KCS_Safe" exact="false"/>
+        <set_value name="$KCS_EnemyStrength" exact="0"/>
+        <set_value name="$KCS_OwnStrength" exact="0"/>
+        <set_value name="$KCS_EnemyStationNear" exact="false"/>
+        <set_value name="$KCS_Points" exact="[$Station]"/>
+        <do_if value="@$EntryPoint.exit.exists and $EntryPoint.exit.sector == $Station.sector">
+          <append_to_list name="$KCS_Points" exact="$EntryPoint.exit"/>
+        </do_if>
+        <create_list name="$KCS_Enemies"/>
+        <create_list name="$KCS_Friends"/>
+        <do_for_each name="$KCS_Point" in="$KCS_Points">
+          <find_ship name="$KCS_Found" space="$Station.sector" multiple="true" primarypurpose="purpose.fight" unit="false" masstraffic="false" hascommander="false">
+            <match class="class.ship_xs" negate="true"/>
+            <match_relation_to faction="$Faction" relation="enemy" comparison="le"/>
+            <match_distance object="$KCS_Point" max="$KCS_SafeRange"/>
+          </find_ship>
+          <do_for_each name="$KCS_Found_Ship" in="$KCS_Found">
+            <do_if value="not $KCS_Enemies.indexof.{$KCS_Found_Ship}">
+              <append_to_list name="$KCS_Enemies" exact="$KCS_Found_Ship"/>
+            </do_if>
+          </do_for_each>
+          <find_ship name="$KCS_Found" space="$Station.sector" trueowner="$Faction" multiple="true" primarypurpose="purpose.fight" unit="false" masstraffic="false" hascommander="false">
+            <match class="class.ship_xs" negate="true"/>
+            <match_distance object="$KCS_Point" max="$KCS_SafeRange"/>
+          </find_ship>
+          <do_for_each name="$KCS_Found_Ship" in="$KCS_Found">
+            <do_if value="not $KCS_Friends.indexof.{$KCS_Found_Ship}">
+              <append_to_list name="$KCS_Friends" exact="$KCS_Found_Ship"/>
+            </do_if>
+          </do_for_each>
+          <find_station name="$KCS_EnemyStation" space="$Station.sector">
+            <match_relation_of faction="$Faction" comparison="le" relation="enemy"/>
+            <match_distance object="$KCS_Point" max="$KCS_StationRange"/>
+          </find_station>
+          <do_if value="$KCS_EnemyStation">
+            <set_value name="$KCS_EnemyStationNear" exact="true"/>
+          </do_if>
+        </do_for_each>
+        <run_actions ref="md.FactionLogic.EvaluateForceStrengthLib" result="$KCS_EnemyStrength">
+          <param name="Ships" value="$KCS_Enemies"/>
+        </run_actions>
+        <run_actions ref="md.FactionLogic.EvaluateForceStrengthLib" result="$KCS_OwnStrength">
+          <param name="Ships" value="$KCS_Friends"/>
+        </run_actions>
+        <set_value name="$KCS_Safe" exact="not $KCS_EnemyStationNear and ($KCS_EnemyStrength le 0 or $KCS_OwnStrength ge $KCS_EnemyStrength * 2)"/>
+        <remove_value name="$KCS_Points"/>
+        <remove_value name="$KCS_Point"/>
+        <remove_value name="$KCS_Found"/>
+        <remove_value name="$KCS_Found_Ship"/>
+        <remove_value name="$KCS_Enemies"/>
+        <remove_value name="$KCS_Friends"/>
+        <remove_value name="$KCS_EnemyStation"/>
+        <remove_value name="$KCS_EnemyStationNear"/>
+      </actions>
+    </library>
+  </add>
+</diff>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mdscript name="CarefulSupply" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <cues>
+    <!-- log to check mod is loaded -->
+    <cue name="Loaded" instantiate="true">
+      <conditions>
+        <check_any>
+          <event_game_started/>
+          <event_game_loaded/>
+        </check_any>
+      </conditions>
+      <actions>
+        <debug_text text="'[Careful Supply] loaded'"/>
+      </actions>
+    </cue>
+  </cues>
+</mdscript>
