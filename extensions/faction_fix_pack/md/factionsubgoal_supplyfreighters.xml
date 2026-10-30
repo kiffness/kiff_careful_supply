@@ -35,7 +35,7 @@
           </do_if>
         </do_all>
         <append_to_list name="$OwnerGoal.$KCS_LossTimes" exact="player.age"/>
-        <debug_text text="'[Careful Supply] ' + $Faction.id + ' lost supply ship ' + @event.object.knownname + ' building ' + @$Station.knownname + ' in ' + @$Station.sector.knownname + ': ' + $OwnerGoal.$KCS_LossTimes.count + ' recently, ' + $OwnerGoal.$KCS_TotalLosses + ' this invasion'"/>
+        <debug_text text="'[Careful Supply] ' + $Faction.id + ' lost supply ship ' + @event.object.knownname + ' ' + @event.object.idcode + ' building ' + @$Station.knownname + ' in ' + @$Station.sector.knownname + ': ' + $OwnerGoal.$KCS_LossTimes.count + ' recently, ' + $OwnerGoal.$KCS_TotalLosses + ' this build'"/>
         <set_value name="$KCS_Seen" exact="@$KCS_LastSeen.{event.object}"/>
         <debug_text text="'[Careful Supply]   where: ' + (if $KCS_Seen then 'last seen in ' + @$KCS_Seen.{1}.knownname + ' ' + (player.age - $KCS_Seen.{4}) + 's ago, order ' + $KCS_Seen.{2} + (if $KCS_Seen.{3} then ', inside target sector' else ', outside target sector') else 'not seen yet') + '; sector now ' + @event.object.sector.knownname + '; killed by ' + @event.param.knownname + ' (' + @event.param.owner.id + ') in ' + @event.param.sector.knownname + '; on hold: ' + (if @$OwnerGoal.$KCS_PausedSince then 'yes' else 'no')"/>
         <remove_value name="$KCS_Seen"/>
@@ -73,6 +73,9 @@
               <include_actions ref="KCS_Release_Hold"/>
             </do_if>
           </do_if>
+        </do_if>
+        <do_if value="$Faction == faction.xenon and not @$OwnerGoal.$KCS_PausedSince and $Station.exists and not $Station.iswreck and not $Station.isoperational and @$Station.buildstorage.exists">
+          <include_actions ref="KCS_Energy_Run"/>
         </do_if>
         <reset_cue cue="KCS_Watch"/>
       </actions>
@@ -112,6 +115,47 @@
             <signal_cue_instantly cue="Set_Ship_Order" param="$Ships.{$KCS_i}"/>
           </do_if>
         </do_all>
+      </actions>
+    </library>
+
+    <!-- the War Module leaves energy cells to the normal economy, but Xenon supply ships only mine ore and silicon,
+         so the build can sit waiting for energy cells forever: while the site wants them, put one supply ship on buying energy cells -->
+    <library name="KCS_Energy_Run">
+      <actions>
+        <find_buy_offer result="$KCS_ECOffer" buyer="$Station.buildstorage" wares="[ware.energycells]"/>
+        <do_if value="@$KCS_ECOffer.available">
+          <do_if value="not @$KCS_EnergyShip.isoperational or not $Ships.indexof.{$KCS_EnergyShip}">
+            <remove_value name="$KCS_EnergyShip"/>
+            <!-- only take an empty ship, so no ore or silicon on board gets dropped -->
+            <do_all exact="$Ships.count" counter="$KCS_i">
+              <do_if value="$Ships.{$KCS_i}.isoperational and $Ships.{$KCS_i}.cargo.list.count == 0 and @$Ships.{$KCS_i}.order.id != 'MoveWait'">
+                <set_value name="$KCS_EnergyShip" exact="$Ships.{$KCS_i}"/>
+                <break/>
+              </do_if>
+            </do_all>
+          </do_if>
+          <do_if value="@$KCS_EnergyShip.isoperational and @$KCS_EnergyShip.defaultorder.id != 'TradeRoutine' and $KCS_EnergyShip.cargo.list.count == 0">
+            <debug_text text="'[Careful Supply] ' + $Faction.id + ' sending ' + $KCS_EnergyShip.knownname + ' ' + $KCS_EnergyShip.idcode + ' to buy energy cells for ' + @$Station.knownname + ' in ' + @$Station.sector.knownname"/>
+            <cancel_all_orders object="$KCS_EnergyShip"/>
+            <set_object_commander object="$KCS_EnergyShip" commander="$Station.buildstorage" assignment="assignment.trade"/>
+            <create_order object="$KCS_EnergyShip" id="'TradeRoutine'" default="true">
+              <param name="warebasket" value="[ware.energycells]"/>
+              <param name="range" value="$Station.zone"/>
+              <param name="minbuy" value="0"/>
+              <param name="maxbuy" value="5"/>
+              <param name="minsell" value="0"/>
+              <param name="maxsell" value="0"/>
+            </create_order>
+          </do_if>
+        </do_if>
+        <!-- nothing more wanted: once it's back to its routine with nothing on board, send it back to mining -->
+        <do_elseif value="@$KCS_EnergyShip.isoperational and @$KCS_EnergyShip.order.id == 'TradeRoutine' and $KCS_EnergyShip.cargo.{ware.energycells}.count == 0">
+          <debug_text text="'[Careful Supply] ' + $Faction.id + ' energy cells covered for ' + @$Station.knownname + ', ' + $KCS_EnergyShip.knownname + ' ' + $KCS_EnergyShip.idcode + ' back to mining'"/>
+          <cancel_all_orders object="$KCS_EnergyShip"/>
+          <signal_cue_instantly cue="Set_Ship_Order" param="$KCS_EnergyShip"/>
+          <remove_value name="$KCS_EnergyShip"/>
+        </do_elseif>
+        <remove_value name="$KCS_ECOffer"/>
       </actions>
     </library>
 
