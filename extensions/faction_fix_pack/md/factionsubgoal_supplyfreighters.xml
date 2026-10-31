@@ -134,12 +134,15 @@
               </do_if>
             </do_all>
           </do_if>
-          <do_if value="@$KCS_EnergyShip.isoperational and @$KCS_EnergyShip.defaultorder.id != 'TradeRoutine' and $KCS_EnergyShip.cargo.list.count == 0">
+          <!-- runners ordered before warebasket_override was added get ordered again, or they'd stay stuck -->
+          <do_if value="@$KCS_EnergyShip.isoperational and (@$KCS_EnergyShip.defaultorder.id != 'TradeRoutine' or not @$KCS_EnergyShip.defaultorder.$warebasket_override.count) and $KCS_EnergyShip.cargo.list.count == 0">
             <debug_text text="'[Careful Supply] ' + $Faction.id + ' sending ' + $KCS_EnergyShip.knownname + ' ' + $KCS_EnergyShip.idcode + ' to buy energy cells for ' + @$Station.knownname + ' in ' + @$Station.sector.knownname"/>
             <cancel_all_orders object="$KCS_EnergyShip"/>
             <set_object_commander object="$KCS_EnergyShip" commander="$Station.buildstorage" assignment="assignment.trade"/>
             <create_order object="$KCS_EnergyShip" id="'TradeRoutine'" default="true">
               <param name="warebasket" value="[ware.energycells]"/>
+              <!-- without this the trade script swaps the basket for whatever the site is shortest of, like ore that nobody sells -->
+              <param name="warebasket_override" value="[ware.energycells]"/>
               <param name="range" value="$Station.zone"/>
               <param name="minbuy" value="0"/>
               <param name="maxbuy" value="5"/>
