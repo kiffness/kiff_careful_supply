@@ -40,6 +40,12 @@
         <debug_text text="'[Careful Supply]   where: ' + (if $KCS_Seen then 'last seen in ' + @$KCS_Seen.{1}.knownname + ' ' + (player.age - $KCS_Seen.{4}) + 's ago, order ' + $KCS_Seen.{2} + (if $KCS_Seen.{3} then ', inside target sector' else ', outside target sector') else 'not seen yet') + '; sector now ' + @event.object.sector.knownname + '; killed by ' + @event.param.knownname + ' (' + @event.param.owner.id + ') in ' + @event.param.sector.knownname + '; on hold: ' + (if @$OwnerGoal.$KCS_PausedSince then 'yes' else 'no')"/>
         <remove_value name="$KCS_Seen"/>
 
+        <!-- the way to the seller isn't safe, so don't feed this build more runners: the normal economy can still bring energy cells -->
+        <do_if value="event.object == @$KCS_EnergyShip">
+          <set_value name="$KCS_RunnerLost" exact="true"/>
+          <debug_text text="'[Careful Supply] ' + $Faction.id + ' lost its energy cell runner, sending no more for ' + @$Station.knownname + ' in ' + @$Station.sector.knownname"/>
+        </do_if>
+
         <do_if value="not @$OwnerGoal.$KCS_PausedSince and $OwnerGoal.$KCS_LossTimes.count ge $KCS_PauseAfterLosses">
           <set_value name="$OwnerGoal.$KCS_PausedSince" exact="player.age"/>
           <debug_text text="'[Careful Supply] ' + $Faction.id + ' holding supply runs to ' + @$Station.sector.knownname + ' at ' + @$EntryPoint.sector.knownname + ' until it is safe'"/>
@@ -74,7 +80,7 @@
             </do_if>
           </do_if>
         </do_if>
-        <do_if value="$Faction == faction.xenon and not @$OwnerGoal.$KCS_PausedSince and $Station.exists and not $Station.iswreck and not $Station.isoperational and @$Station.buildstorage.exists">
+        <do_if value="$Faction == faction.xenon and not @$KCS_RunnerLost and not @$OwnerGoal.$KCS_PausedSince and $Station.exists and not $Station.iswreck and not $Station.isoperational and @$Station.buildstorage.exists">
           <include_actions ref="KCS_Energy_Run"/>
         </do_if>
         <reset_cue cue="KCS_Watch"/>
